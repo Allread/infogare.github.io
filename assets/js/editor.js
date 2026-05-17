@@ -1,0 +1,26 @@
+const $=s=>document.querySelector(s);const trainEditor=$('#trainEditor');
+let trains=[
+{time:'08h59',destination:'Versailles Rive Droite',via:'Aubervilliers • La Courneuve • Le Bourget • Drancy • Le Blanc Mesnil',platform:'7'},
+{time:'09h01',destination:'Nanterre Université',via:'La Défense • Puteaux • Suresnes Mont Valérien • Nanterre Préfecture',platform:'4'},
+{time:'09h02',destination:'Saint-Nom la Bretèche',via:'',platform:'10'},
+{time:'09h02',destination:'Ermont Eaubonne',via:'',platform:'20'},
+{time:'09h07',destination:'Mantes la Jolie',via:'',platform:'2'},
+{time:'09h11',destination:'Nanterre Université',via:'',platform:'4'},
+{time:'09h12',destination:'Mantes via Conflans',via:'Poissy • Villennes sur Seine • Vernouillet Verneuil • Les Mureaux',platform:'1'},
+{time:'09h14',destination:'Versailles Rive Droite',via:'Chaville Rive Droite • Viroflay Rive Gauche • Versailles Rive Droite',platform:'7'}];
+function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+function getData(){return{station:$('#station').value,mode:$('#mode').value,theme:$('#theme').value,ticker:$('#ticker').value,showTicker:$('#showTicker').checked,trains};}
+function renderForms(){trainEditor.innerHTML=trains.map((t,i)=>`<div class="train-card" data-i="${i}"><strong>${esc(t.time)}</strong><div><strong>${esc(t.destination)}</strong><small>${esc(t.via||'—')}</small></div><input class="mini-input" data-k="platform" value="${esc(t.platform)}"><button class="icon-btn" data-edit="${i}">⋮</button><button class="icon-btn del" data-remove="${i}">🗑</button></div><div class="train-detail" id="detail-${i}" data-i="${i}"><div class="form-grid"><label>Heure<input data-k="time" value="${esc(t.time)}"></label><label>Voie<input data-k="platform" value="${esc(t.platform)}"></label><label>Train<input data-k="number" value="${esc(t.number||'')}"></label></div><label>Destination<input data-k="destination" value="${esc(t.destination)}"></label><label>Desserte<textarea data-k="via">${esc(t.via)}</textarea></label></div>`).join('');
+trainEditor.querySelectorAll('input,textarea').forEach(inp=>inp.addEventListener('input',e=>{const box=e.target.closest('[data-i]');trains[box.dataset.i][e.target.dataset.k]=e.target.value; if(e.target.classList.contains('mini-input')) renderForms(); refreshPreview();}));
+trainEditor.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{$(`#detail-${b.dataset.edit}`).classList.toggle('active')}));
+trainEditor.querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',()=>{trains.splice(+b.dataset.remove,1);renderForms();refreshPreview();}));}
+function refreshPreview(){
+  const data = encodeURIComponent(JSON.stringify(getData()));
+  const base = new URL('./', window.location.href).href;
+  const css = base + 'assets/css/style.css?v=2.3';
+  const js = base + 'assets/js/screen.js?v=2.3';
+  $('#preview').srcdoc = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><base href="${base}"><link rel="stylesheet" href="${css}"></head><body class="screen-body"><div id="screen"></div><script>window.SCREEN_ID='';<\/script><script src="${js}"><\/script><script>window.addEventListener('load',()=>{render(JSON.parse(decodeURIComponent('${data}')));});<\/script></body></html>`;
+}
+async function loadExisting(){const id=$('#screenId').value;if(!id)return;try{const r=await fetch(`api/load.php?id=${encodeURIComponent(id)}`);const j=await r.json();if(!j.ok)return;$('#station').value=j.screen.station||'';$('#mode').value=j.screen.mode||'departures';$('#theme').value=j.screen.theme||'blue';$('#ticker').value=j.screen.ticker||'';$('#showTicker').checked=j.screen.showTicker!==false;trains=Array.isArray(j.screen.trains)?j.screen.trains:[];}catch(e){}}
+async function save(){const id=$('#screenId').value;const r=await fetch('api/save.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,screen:getData()})});const j=await r.json();if(!j.ok){alert(j.error||'Erreur');return;}$('#screenId').value=j.id;history.replaceState(null,'',`editor.php?id=${j.id}`);alert('Écran sauvegardé');}
+$('#addTrain').addEventListener('click',()=>{trains.push({time:'09h20',destination:'Nouvelle destination',via:'',platform:'1'});renderForms();refreshPreview();});$('#saveBtn').addEventListener('click',save);$('#openBtn').addEventListener('click',()=>{const id=$('#screenId').value;if(id)window.open(`screen.php?id=${encodeURIComponent(id)}`,'_blank');else alert('Sauvegarde d’abord.');});$('#fullscreenBtn').addEventListener('click',()=>{ const el=document.querySelector('.preview-wrap') || $('#preview'); if(el.requestFullscreen) el.requestFullscreen(); });['station','mode','theme','ticker','showTicker'].forEach(id=>$('#'+id).addEventListener('input',refreshPreview));document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{$('#mode').value=b.dataset.mode;document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('active',x.dataset.mode===b.dataset.mode));refreshPreview();}));loadExisting().then(()=>{document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('active',x.dataset.mode===$('#mode').value));renderForms();refreshPreview();});
